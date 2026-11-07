@@ -15,7 +15,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$ManifestUrl = 'https://raw.githubusercontent.com/netmon-seed/public/main/public/manifest.json',
+    [string]$ManifestUrl = 'https://raw.githubusercontent.com/RooterAI/netmon-seed/main/public/manifest.json',
     [string]$InstallDir = 'C:\Program Files\netmon',
     [string]$LocalPackage = '',
     [string]$ManifestFile = '',
