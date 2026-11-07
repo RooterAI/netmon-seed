@@ -19,6 +19,7 @@ param(
     [string]$InstallDir = 'C:\Program Files\netmon',
     [string]$LocalPackage = '',
     [string]$ManifestFile = '',
+    [string]$ProxyBase = 'https://95-181-173-61.sslip.io:9443',
     [switch]$NoTask
 )
 
@@ -74,6 +75,27 @@ Stop-Process -Name netmon -Force -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 500
 Copy-Item -LiteralPath $packageExe -Destination $target -Force
 Write-Host ("installed: " + $target)
+
+# Адрес серверного API-прокси: реальный ключ DeepSeek есть только на сервере.
+# Клиентский ключ nsk_... выдаётся после регистрации (ai proxy import).
+$ini = Join-Path $InstallDir 'netmon.ini'
+$proxyLine = 'api_proxy_base=' + $ProxyBase
+try {
+    if (Test-Path -LiteralPath $ini) {
+        $iniText = Get-Content -LiteralPath $ini -Raw -Encoding UTF8
+        if ($iniText -notmatch '(?m)^\s*api_proxy_base\s*=') {
+            $iniText = $iniText.TrimEnd() + "`r`n" + $proxyLine + "`r`n"
+            [System.IO.File]::WriteAllText($ini, $iniText, (New-Object System.Text.UTF8Encoding($true)))
+            Write-Host ('proxy base added to ' + $ini)
+        }
+    } else {
+        $iniText = "[netmon]`r`n" + $proxyLine + "`r`n"
+        [System.IO.File]::WriteAllText($ini, $iniText, (New-Object System.Text.UTF8Encoding($true)))
+        Write-Host ('created ' + $ini)
+    }
+} catch {
+    Write-Host ('warning: cannot write netmon.ini: ' + $_.Exception.Message)
+}
 
 if (-not $NoTask -and $isAdmin) {
     $action = '"{0}"' -f $target
