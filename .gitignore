@@ -1,0 +1,6 @@
+# приватная часть не должна попадать в git в открытом виде
+private/users/*
+!private/README.md
+netmon.update.tmp
+netmon.exe.old
+*.bak
