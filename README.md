@@ -40,6 +40,17 @@ powershell -ExecutionPolicy Bypass -File .\Install-Netmon.ps1
 Установщик кладёт клиент в `C:\Program Files\netmon`, создаёт задачу
 планировщика `netmon` (запуск при входе, наивысшие права) и запускает клиент.
 
+## Что нового в 2.4.0
+
+* Свой реестр профилей (`config\netmon\profiles\index.json`) и мигратор из NekoBox —
+  активный профиль больше не зависит от чужого клиента.
+* Своё ядро: конфиг `core.json` собирается из наших профилей (`--cli core gen`),
+  запуск/остановка (`core start|stop`), свой TUN `netmon-tun`.
+* Саморазработка: клиент умеет диагностировать себя, спрашивать план у DeepSeek и
+  применять правки с откатом при сбое (`--cli selfdev …`), есть ночное расписание.
+* Отчёт о зависимостях `--cli deps` (своё / системное / внешнее) и строка
+  «Самодостаточность» в самодиагностике.
+
 ## Обновления
 
 Клиент сам проверяет `manifest.json` (режим `update_mode` в `netmon.ini`):
@@ -47,12 +58,16 @@ powershell -ExecutionPolicy Bypass -File .\Install-Netmon.ps1
 ```powershell
 netmon.exe --cli update check     # есть ли новая версия
 netmon.exe --cli update apply     # скачать, проверить SHA-256, подменить и перезапуститься
+netmon.exe --cli self             # версия, права, автозапуск, журнал
 ```
+
+Версия задана в одном месте исходников (`src\version.h`), поэтому манифест и клиент
+всегда согласованы: `publish.ps1` берёт номер из `netmon.exe --cli self`.
 
 ## Сборка и публикация
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\publish.ps1 -Version 2.3.1 -Push
+powershell -ExecutionPolicy Bypass -File .\publish.ps1 -Version 2.4.0 -Push
 ```
 
 `publish.ps1` копирует свежий `netmon.exe` в `public/`, считает SHA-256,
