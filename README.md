@@ -40,6 +40,13 @@ powershell -ExecutionPolicy Bypass -File .\Install-Netmon.ps1
 Установщик кладёт клиент в `C:\Program Files\netmon`, создаёт задачу
 планировщика `netmon` (запуск при входе, наивысшие права) и запускает клиент.
 
+## Что нового в 2.4.1
+
+* Индикатор саморазработки в статусбаре: «саморазработка: <фаза>» во время прогона,
+  «оборван» с красной точкой при срыве; клик открывает журнал.
+* Единый номер версии (`src\version.h`) и защита от устаревшего CDN-манифеста.
+* Исправлено наложение правого блока статусбара на быстрые действия.
+
 ## Что нового в 2.4.0
 
 * Свой реестр профилей (`config\netmon\profiles\index.json`) и мигратор из NekoBox —
@@ -67,7 +74,7 @@ netmon.exe --cli self             # версия, права, автозапус
 ## Сборка и публикация
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\publish.ps1 -Version 2.4.0 -Push
+powershell -ExecutionPolicy Bypass -File .\publish.ps1 -Version 2.4.1 -Push
 ```
 
 `publish.ps1` копирует свежий `netmon.exe` в `public/`, считает SHA-256,
