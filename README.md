@@ -40,6 +40,15 @@ powershell -ExecutionPolicy Bypass -File .\Install-Netmon.ps1
 Установщик кладёт клиент в `C:\Program Files\netmon`, создаёт задачу
 планировщика `netmon` (запуск при входе, наивысшие права) и запускает клиент.
 
+## Что нового в 2.6.0
+
+* Своё ядро без отдельного бинарника: `netmon.exe --cli core run` поднимает SOCKS5
+  на `127.0.0.1:22080` и завершает соединения своим транспортом.
+* Свой транспорт: TLS-релей `NMR1` (SChannel) на нашем сервере + серверный демон
+  `server/netmon_relay.py`; `core relay on | off | probe | psk`.
+* `deps` показывает ядро и транспорт как «своё»: своих 9, внешних 2 (TUN и клиент —
+  до этапа A4 с TUN-драйвером).
+
 ## Что нового в 2.5.2
 
 * Хуки состояния окна (`ui-state`, `tray-state`, `layout`, `snapshot`, `hit-…`,
@@ -92,7 +101,7 @@ netmon.exe --cli self             # версия, права, автозапус
 ## Сборка и публикация
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\publish.ps1 -Version 2.5.0 -Push
+powershell -ExecutionPolicy Bypass -File .\publish.ps1 -Version 2.5.2 -Push
 ```
 
 `publish.ps1` копирует свежий `netmon.exe` в `public/`, считает SHA-256,
