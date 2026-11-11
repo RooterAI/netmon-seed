@@ -26,7 +26,8 @@ if (-not $Version) {
     if (-not $Version) { throw 'укажите -Version x.y.z' }
 }
 
-$srcExe = Resolve-Path (Join-Path $root $Source)
+$srcExe = if ([System.IO.Path]::IsPathRooted($Source)) { Resolve-Path $Source }
+           else { Resolve-Path (Join-Path $root $Source) }
 New-Item -ItemType Directory -Path $public -Force | Out-Null
 $dstExe = Join-Path $public 'netmon.exe'
 Copy-Item -LiteralPath $srcExe -Destination $dstExe -Force
