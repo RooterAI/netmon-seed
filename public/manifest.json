@@ -1,8 +1,8 @@
 {
-  "version": "3.13.5",
+  "version": "3.13.6",
   "file": "netmon.exe",
-  "sha256": "931ebdfa2ad15344a7bee1dfe5b490e1b106dfb8e3571e060cdcdc10c1729805",
-  "size": 7829992,
+  "sha256": "94f17f6068f4d138c1f732effba0f14e223a81c238298a45ea83eaff08bb5f2f",
+  "size": 7836713,
   "notes": "netmon seed: мониторинг сети, VPN, хотспот, самодиагностика",
   "updated": "2026-11-12"
 }
