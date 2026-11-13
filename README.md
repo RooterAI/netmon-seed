@@ -40,6 +40,56 @@ powershell -ExecutionPolicy Bypass -File .\Install-Netmon.ps1
 Установщик кладёт клиент в `C:\Program Files\netmon`, создаёт задачу
 планировщика `netmon` (запуск при входе, наивысшие права) и запускает клиент.
 
+## Что нового в 3.15.0
+
+**Свой протокол hysteria2 в ядре: QUIC-транспорт msquic + наш код протокола.**
+
+Раньше hysteria2 обслуживал внешний движок (`engine\sing-box.exe`). Теперь протокол
+реализован у нас: обфускация, авторизация и проксирование — наш код, а транспорт
+QUIC/TLS берётся у системы (`msquic.dll`, MIT, и SChannel) — так же, как драйвер
+TUN берётся у Wintun.
+
+Что сделано в `src/hysteria.cpp` + `src/quic.cpp`:
+
+- **Обфускация Salamander**: `[8 байт соли][данные XOR BLAKE2b-256(psk ‖ соль)]`.
+  BLAKE2b-256 реализован в `crypto.cpp` (проверен векторами RFC 7693). Обфускация
+  работает на уровне UDP-пакетов, поэтому перед QUIC стоит свой локальный релей
+  `127.0.0.1 → сервер`, который заворачивает и разворачивает каждый пакет.
+- **Авторизация HTTP/3**: запрос `POST https://hysteria/auth` с полями
+  `hysteria-auth`, `hysteria-cc-rx`, `hysteria-padding`. Свой QPACK-кодер
+  (только статическая таблица) и декодер с **Huffman** — именно так кодирует
+  Go-сервер hysteria2.
+- **TCP**: отдельный двунаправленный поток QUIC на соединение, кадр `TCPRequest`
+  (`0x401` + адрес + паддинг), ответ `TCPResponse`.
+- **UDP**: ненадёжные датаграммы QUIC (RFC 9221) с заголовком `UDPMessage`
+  и фрагментацией по 1200 байт.
+
+Команды (наш протокол виден и проверяется без TUN):
+
+```
+netmon.exe --cli hysteria                  # состояние: msquic, туннель, счётчики
+netmon.exe --cli hysteria on|off           # включить/выключить своё ядро (netmon.ini)
+netmon.exe --cli hysteria auth <host> <port> <пароль> [psk] [sni]
+netmon.exe --cli hysteria tcp <host> <port> [путь]
+netmon.exe --cli hysteria udp <host> <port>
+netmon.exe --cli hysteria quic[-obfs] <host> <port> ...   # только рукопожатие
+```
+
+Проверено на настоящих серверах hysteria2 (2.13.0 с обфускацией Salamander и
+2.6.5 без обфускации): авторизация `HTTP 233`, `hysteria-udp: true`, TCP-запрос —
+`статус 0` (сервер открыл соединение), UDP-датаграммы доходят.
+
+**Важно про статус.** Своё ядро для hysteria2 по умолчанию **выключено**: профиль
+ведёт движок, как в 3.14.x, — так сеть остаётся предсказуемой. Включается
+`--cli hysteria on`. Причина: на этой сборке Windows (11, build 26300) библиотека
+msquic падает внутри своего транспортного воркера, когда сервер начинает говорить
+HTTP/3 — падение происходит в `datapath_raw_xdp_win.c` у msquic 2.5/2.6 и в
+`worker.c` у 2.4.20, то есть это дефект транспорта, а не логики протокола.
+Диагностика включается переменной `NETMON_QUIC_LOG=1` (пишет `quic-events.log`).
+
+Что нужно: положить `msquic.dll` (x64, MIT) рядом с `netmon.exe`. Без неё сеть
+работает как обычно, а `--cli hysteria` честно скажет «нет msquic.dll».
+
 ## Что нового в 3.14.4
 
 **Hysteria2 в TUN — и TCP, и UDP. Плюс VMess, VLESS+REALITY и TUIC.**

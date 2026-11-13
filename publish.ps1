@@ -35,6 +35,18 @@ Copy-Item -LiteralPath $srcExe -Destination $dstExe -Force
 $hash = (Get-FileHash -LiteralPath $dstExe -Algorithm SHA256).Hash.ToLower()
 $size = (Get-Item -LiteralPath $dstExe).Length
 
+# Транспорт QUIC (msquic.dll, MIT) — нужен нашему протоколу hysteria2.
+# Кладём рядом с netmon.exe: без него сеть работает, но туннель скажет «нет msquic.dll».
+$qSrc = Join-Path (Split-Path -Parent $srcExe) 'msquic.dll'
+$quicName = $null
+$quicHash = $null
+if (Test-Path -LiteralPath $qSrc) {
+    $qDst = Join-Path $public 'msquic.dll'
+    Copy-Item -LiteralPath $qSrc -Destination $qDst -Force
+    $quicName = 'msquic.dll'
+    $quicHash = (Get-FileHash -LiteralPath $qDst -Algorithm SHA256).Hash.ToLower()
+}
+
 $manifest = [ordered]@{
     version = $Version
     file    = 'netmon.exe'
@@ -42,6 +54,10 @@ $manifest = [ordered]@{
     size    = $size
     notes   = 'netmon seed: мониторинг сети, VPN, хотспот, самодиагностика'
     updated = (Get-Date).ToString('yyyy-MM-dd')
+}
+if ($quicName) {
+    $manifest.msquic = $quicName
+    $manifest.msquic_sha256 = $quicHash
 }
 $manifestPath = Join-Path $public 'manifest.json'
 ($manifest | ConvertTo-Json -Depth 4) | Set-Content -LiteralPath $manifestPath -Encoding UTF8
