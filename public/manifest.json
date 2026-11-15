@@ -1,8 +1,8 @@
 {
-  "version": "3.20.7",
+  "version": "3.20.8",
   "file": "netmon.exe",
-  "sha256": "27efa0a863c97490b0f49570e0d8dd2469cf5b14d9e0b6b394b80b2f47a887d5",
-  "size": 8870940,
+  "sha256": "2eabe37484ac1cc19e3b05affe5a76a9b3b0aec8857318637bfb83bb063055c8",
+  "size": 8887707,
   "notes": "netmon seed: мониторинг сети, VPN, хотспот, самодиагностика",
   "updated": "2026-11-15",
   "msquic": "msquic.dll",
