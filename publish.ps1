@@ -20,6 +20,25 @@ $public = Join-Path $root 'public'
 $srcExe = if ([System.IO.Path]::IsPathRooted($Source)) { Resolve-Path $Source }
            else { Resolve-Path (Join-Path $root $Source) }
 
+# Идемпотентность: повторная публикация того же образа — не ошибка.
+# 16.11 в 01:24 и 01:26 фаза publish падала на проверке провенанса («дерево файла
+# d122ce26 не совпадает с деревом на диске 24738c56»), хотя в public\ уже лежал
+# тот же байт-в-байт образ: система и пакет были 3.20.24. Проверка провенанса
+# остаётся, но только для случая, когда публикуемый образ отличается от того,
+# что уже опубликован.
+$dstExe0 = Join-Path $public 'netmon.exe'
+$manifest0 = Join-Path $public 'manifest.json'
+if ((Test-Path -LiteralPath $dstExe0) -and (Test-Path -LiteralPath $manifest0)) {
+    $srcHash0 = (Get-FileHash -LiteralPath $srcExe -Algorithm SHA256).Hash.ToLower()
+    $dstHash0 = (Get-FileHash -LiteralPath $dstExe0 -Algorithm SHA256).Hash.ToLower()
+    $m0 = $null
+    try { $m0 = (Get-Content -LiteralPath $manifest0 -Raw) | ConvertFrom-Json } catch { $m0 = $null }
+    if ($srcHash0 -eq $dstHash0 -and $m0 -and "$($m0.sha256)" -eq $srcHash0) {
+        Write-Host ("уже опубликовано: версия {0}, sha256 {1}, публиковать нечего" -f $m0.version, $srcHash0.Substring(0, 8))
+        exit 0
+    }
+}
+
 # Провенанс (B-1, этап 13). 00:23:52 и 23:57 в public лежали два разных образа
 # с одной версией 3.20.21: у одного дерево менялось во время компиляции, у другого
 # метки не было вовсе. Публикуем только файл, чья метка совпадает с деревом на диске.
@@ -34,11 +53,17 @@ if (Test-Path -LiteralPath $dirtyPath) {
 
 function Get-TreeHashNow {
     param([string]$Dir)
-    $parts = Get-ChildItem -LiteralPath $Dir -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.Extension -in '.cpp', '.h', '.rc' -and $_.Name -ne 'build_info.h' } |
-        Sort-Object Name |
-        ForEach-Object { "$($_.Name):$($_.Length):$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash)" }
-    if (-not $parts) { return $null }
+    $files = @(Get-ChildItem -LiteralPath $Dir -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -in '.cpp', '.h', '.rc' -and $_.Name -ne 'build_info.h' })
+    if (-not $files) { return $null }
+    # Тот же побайтовый порядок, что в build.ps1: иначе сборка (pwsh 7) и эта
+    # публикация (powershell.exe 5.1) видят разные хеши одного дерева (B-1j).
+    $names = [string[]]@($files.Name)
+    [Array]::Sort($names, [StringComparer]::Ordinal)
+    $parts = foreach ($n in $names) {
+        $f = Join-Path $Dir $n
+        "${n}:$((Get-Item -LiteralPath $f).Length):$((Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash)"
+    }
     $text = [Text.Encoding]::UTF8.GetBytes(($parts -join "`n"))
     (Get-FileHash -InputStream ([IO.MemoryStream]::new($text)) -Algorithm SHA256).Hash.ToLower().Substring(0, 8)
 }
