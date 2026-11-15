@@ -20,7 +20,10 @@ if (-not $Version) {
     # версию берём из самого клиента
     $exe = Join-Path $root $Source
     if (Test-Path $exe) {
-        $out = & $exe --cli self 2>&1 | Out-String
+        # --local обязателен: без него команда уходит работающему окну, и версия
+        # берётся у живого процесса, а не у публикуемого файла (так манифест
+        # однажды разошёлся с бинарником).
+        $out = & $exe --cli self --local 2>&1 | Out-String
         if ($out -match 'версия\s*:\s*([0-9]+\.[0-9]+\.[0-9]+)') { $Version = $Matches[1] }
     }
     if (-not $Version) { throw 'укажите -Version x.y.z' }
