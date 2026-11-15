@@ -9,28 +9,70 @@ param(
     [string]$Source = '..\tools\netmon_cpp\netmon.exe',
     [string]$Remote = 'origin',
     [string]$Branch = 'main',
-    [switch]$Push
+    [switch]$Push,
+    # Публикация файла, чьё дерево не совпадает с текущим, — только осознанно.
+    [switch]$AllowTreeMismatch
 )
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $public = Join-Path $root 'public'
+$srcExe = if ([System.IO.Path]::IsPathRooted($Source)) { Resolve-Path $Source }
+           else { Resolve-Path (Join-Path $root $Source) }
+
+# Провенанс (B-1, этап 13). 00:23:52 и 23:57 в public лежали два разных образа
+# с одной версией 3.20.21: у одного дерево менялось во время компиляции, у другого
+# метки не было вовсе. Публикуем только файл, чья метка совпадает с деревом на диске.
+$dirtyPath = "$srcExe.dirty"
+if (Test-Path -LiteralPath $dirtyPath) {
+    $why = Get-Content -LiteralPath $dirtyPath -Raw -ErrorAction SilentlyContinue
+    if (-not $AllowTreeMismatch) {
+        throw "файл помечен dirty, публикация запрещена ($dirtyPath): $why"
+    }
+    Write-Host "внимание: файл помечен dirty, публикация по -AllowTreeMismatch: $why"
+}
+
+function Get-TreeHashNow {
+    param([string]$Dir)
+    $parts = Get-ChildItem -LiteralPath $Dir -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -in '.cpp', '.h', '.rc' -and $_.Name -ne 'build_info.h' } |
+        Sort-Object Name |
+        ForEach-Object { "$($_.Name):$($_.Length):$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash)" }
+    if (-not $parts) { return $null }
+    $text = [Text.Encoding]::UTF8.GetBytes(($parts -join "`n"))
+    (Get-FileHash -InputStream ([IO.MemoryStream]::new($text)) -Algorithm SHA256).Hash.ToLower().Substring(0, 8)
+}
+
+$repoRoot = Split-Path -Parent $root
+$srcDir = Join-Path $repoRoot 'tools\netmon_cpp\src'
+$treeNow = Get-TreeHashNow $srcDir
+
+# --local обязателен: без него команда уходит работающему окну, и версия берётся
+# у живого процесса, а не у публикуемого файла (так манифест однажды разошёлся
+# с бинарником). Тем же вызовом берём метку сборки и дерево.
+$selfOut = & $srcExe --cli self --local 2>&1 | Out-String
+$buildStamp = $null
+$treeInExe = $null
+if ($selfOut -match 'сборка\s*:\s*(\S+?),\s*дерево\s*(\S+)') {
+    $buildStamp = $Matches[1]
+    $treeInExe = $Matches[2]
+}
+if (-not $treeInExe -or $treeInExe -eq 'unknown') {
+    if (-not $AllowTreeMismatch) { throw "публикуемый файл не сообщает дерево сборки (--cli self): $($srcExe)" }
+    Write-Host 'внимание: файл без метки дерева, публикация по -AllowTreeMismatch'
+} elseif ($treeNow -and $treeInExe -ne $treeNow) {
+    if (-not $AllowTreeMismatch) {
+        throw "дерево файла $treeInExe не совпадает с деревом на диске $treeNow — публикация запрещена"
+    }
+    Write-Host "внимание: дерево файла $treeInExe, на диске $treeNow — публикация по -AllowTreeMismatch"
+}
 
 if (-not $Version) {
-    # версию берём из самого клиента
-    $exe = Join-Path $root $Source
-    if (Test-Path $exe) {
-        # --local обязателен: без него команда уходит работающему окну, и версия
-        # берётся у живого процесса, а не у публикуемого файла (так манифест
-        # однажды разошёлся с бинарником).
-        $out = & $exe --cli self --local 2>&1 | Out-String
-        if ($out -match 'версия\s*:\s*([0-9]+\.[0-9]+\.[0-9]+)') { $Version = $Matches[1] }
-    }
+    # версию берём из того же вызова, что и метку сборки
+    if ($selfOut -match 'версия\s*:\s*([0-9]+\.[0-9]+\.[0-9]+)') { $Version = $Matches[1] }
     if (-not $Version) { throw 'укажите -Version x.y.z' }
 }
 
-$srcExe = if ([System.IO.Path]::IsPathRooted($Source)) { Resolve-Path $Source }
-           else { Resolve-Path (Join-Path $root $Source) }
 New-Item -ItemType Directory -Path $public -Force | Out-Null
 $dstExe = Join-Path $public 'netmon.exe'
 Copy-Item -LiteralPath $srcExe -Destination $dstExe -Force
@@ -58,6 +100,9 @@ $manifest = [ordered]@{
     notes   = 'netmon seed: мониторинг сети, VPN, хотспот, самодиагностика'
     updated = (Get-Date).ToString('yyyy-MM-dd')
 }
+# Провенанс в манифесте: по нему видно, из какого дерева собран образ, не запуская его.
+if ($treeInExe) { $manifest.tree = $treeInExe }
+if ($buildStamp) { $manifest.build = $buildStamp }
 if ($quicName) {
     $manifest.msquic = $quicName
     $manifest.msquic_sha256 = $quicHash
