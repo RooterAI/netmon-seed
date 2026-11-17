@@ -14,6 +14,9 @@ param(
     [switch]$AllowTreeMismatch
 )
 
+# Вывод утилиты на русском: без явной кодировки кириллица декодируется как CP866,
+# и разбор «дерево сборки» из --cli self ложно падает (наблюдали 17.11).
+try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $public = Join-Path $root 'public'
