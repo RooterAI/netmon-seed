@@ -105,6 +105,17 @@ New-Item -ItemType Directory -Path $public -Force | Out-Null
 $dstExe = Join-Path $public 'netmon.exe'
 Copy-Item -LiteralPath $srcExe -Destination $dstExe -Force
 
+# Карта символов едет вместе с образом (M-193): без неё релизный гейт видит
+# «map 12:45:59 при exe 14:13:01» и валит выпуск, а разбор падений по адресам
+# (то, чем нашли M-187) становится невозможен — карта описывает другой код.
+$mapSrc = "$srcExe.map"
+$dstMap = Join-Path $public 'netmon.exe.map'
+if (Test-Path -LiteralPath $mapSrc) {
+    Copy-Item -LiteralPath $mapSrc -Destination $dstMap -Force
+} else {
+    Write-Host "предупреждение: карты символов нет рядом с образом ($mapSrc) — гейт попросит её отдельно"
+}
+
 $hash = (Get-FileHash -LiteralPath $dstExe -Algorithm SHA256).Hash.ToLower()
 $size = (Get-Item -LiteralPath $dstExe).Length
 
