@@ -11,7 +11,10 @@ param(
     [string]$Branch = 'main',
     [switch]$Push,
     # Публикация файла, чьё дерево не совпадает с текущим, — только осознанно.
-    [switch]$AllowTreeMismatch
+    [switch]$AllowTreeMismatch,
+    # M-237: публикация файла, чей встроенный номер версии не совпадает с -Version,
+    # — только осознанно (иначе манифест 3.20.53, а --cli status 3.20.52).
+    [switch]$AllowVersionMismatch
 )
 
 # Вывод утилиты на русском: без явной кодировки кириллица декодируется как CP866,
@@ -99,6 +102,20 @@ if (-not $Version) {
     # версию берём из того же вызова, что и метку сборки
     if ($selfOut -match 'версия\s*:\s*([0-9]+\.[0-9]+\.[0-9]+)') { $Version = $Matches[1] }
     if (-not $Version) { throw 'укажите -Version x.y.z' }
+}
+
+# M-237: номер версии живёт в tools\netmon_cpp\src\version.h и попадает в файл при
+# сборке, а манифест пишется из -Version. Расхождение уже случалось: манифест
+# 3.20.53/54, а verify и владелец видели 3.20.52 — «выпущено» было неправдой.
+if ($selfOut -match 'версия\s*:\s*([0-9]+\.[0-9]+\.[0-9]+)') {
+    $exeVersion = $Matches[1]
+    if ($exeVersion -ne $Version) {
+        if (-not $AllowVersionMismatch) {
+            throw ("встроенная версия файла {0} не совпадает с -Version {1} — " -f $exeVersion, $Version) +
+                  'поправьте src\version.h и пересоберите (или -AllowVersionMismatch)'
+        }
+        Write-Host "внимание: файл сообщает версию $exeVersion, публикуем как $Version (-AllowVersionMismatch)"
+    }
 }
 
 New-Item -ItemType Directory -Path $public -Force | Out-Null
